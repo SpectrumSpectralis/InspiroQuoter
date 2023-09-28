@@ -19,19 +19,16 @@ public class Main {
     private static final String quoteSource = "src/main/resources/quotes/quotes.txt";
     private static final String fontSource = "src/main/resources/fonts.txt";
     private static final String destination = "src/main/resources/results";
+    private static final String approved = "src/main/resources/approved";
 
-    private static int compressor = 4;
-    private static int resolution = 1048 * compressor;
-    private static int textSpace = (resolution/8)*7;
-
-    private static int fontSize = 56 * compressor;
+    private static final int compressor = 4;
+    private static final int resolution = 1048 * compressor;
+    private static final int textSpace = (resolution/8)*7;
+    private static final int fontSize = 56 * compressor;
 
     public static void main(String[] args) throws IOException {
         ImageProcessor processor = new ImageProcessor();
-        processor.loadResults(destination);
-        processor.loadDifferentImages(imageSource);
-        processor.loadDifferentQuotes(quoteSource);
-        processor.loadDifferentFonts(fontSource);
+        processor.prepare(approved, imageSource, quoteSource, fontSource);
         int maxCycles = Math.min(processor.getImageFiles().size(), processor.getQuotes().size());
 
         for(int i = 0; i < maxCycles; i++){
@@ -45,20 +42,36 @@ public class Main {
             Graphics2D g = image.createGraphics();
             Font font = new Font(processor.getNextFont(), Font.PLAIN, fontSize);
             FontMetrics metrics = g.getFontMetrics(font);
-            String text = processor.getFirstQuoteAndToss();
+            String text  = processor.getFirstQuoteAndToss();
             String interpret = null;
-            if(text.split("-").length > 1) {
-                interpret = text.split("-")[1];
-                text = text.split("-")[0];
+            String[] splittedLine = text.split("-");
+            StringBuilder textBuilder = new StringBuilder();
+            if (splittedLine.length > 2) {
+                for (int j = 0; j < splittedLine.length; j++) {
+                    if(splittedLine.length == j+1){
+                        interpret = splittedLine[j];
+                    }else{
+                        textBuilder.append(splittedLine[j]);
+                        if(splittedLine.length != j+2){
+                            textBuilder.append("; ");
+                        }
+                    }
+                }
+            }else{
+                interpret = splittedLine[1];
+                textBuilder.append(splittedLine[0]);
             }
 
-            double avgLines = Math.ceil(((double) metrics.stringWidth(text))/((double) textSpace));
-            double avgTextLength = Math.floor(((double) metrics.stringWidth(text))/avgLines);
+
+            String finishedText = textBuilder.toString();
+
+            double avgLines = Math.ceil(((double) metrics.stringWidth(finishedText))/((double) textSpace));
+            double avgTextLength = Math.floor(((double) metrics.stringWidth(finishedText))/avgLines);
 
 
             List<String> linesToPost = new ArrayList<>();
-            String[] textSplitted = text.trim().split("\\s+");
-            imageName.append(text.hashCode());
+            String[] textSplitted = finishedText.trim().split("\\s+");
+            imageName.append(finishedText.hashCode());
             int k = 0;
             while(k < textSplitted.length){
                 StringBuilder line = new StringBuilder();
@@ -72,10 +85,10 @@ public class Main {
 
             int negativeYOffsetMultiplier =  linesToPost.size()/2;
 
-            for (int j = 0; j < linesToPost.size(); j++) {
-                int positionX = (image.getWidth() - metrics.stringWidth(linesToPost.get(j))) / 2;
-                int positionY = (image.getHeight() - metrics.getHeight()) / 2 + metrics.getAscent() - (fontSize*negativeYOffsetMultiplier);
-                AttributedString attributedText = new AttributedString(linesToPost.get(j));
+            for (String s : linesToPost) {
+                int positionX = (image.getWidth() - metrics.stringWidth(s)) / 2;
+                int positionY = (image.getHeight() - metrics.getHeight()) / 2 + metrics.getAscent() - (fontSize * negativeYOffsetMultiplier);
+                AttributedString attributedText = new AttributedString(s);
                 attributedText.addAttribute(TextAttribute.FONT, font);
                 //attributedText.addAttribute(TextAttribute.FOREGROUND, Color.GRAY);
 
@@ -98,7 +111,7 @@ public class Main {
             if(interpret != null && !interpret.isEmpty()){
                 int positionX = (image.getWidth() - metrics.stringWidth(interpret)) / 2;
                 int positionY = (image.getHeight() - metrics.getHeight()) / 2 + metrics.getAscent() - (fontSize*(negativeYOffsetMultiplier-2));
-                AttributedString attributedText = new AttributedString(interpret);
+                AttributedString attributedText = new AttributedString("- " + interpret);
                 attributedText.addAttribute(TextAttribute.FONT, font);
                 //attributedText.addAttribute(TextAttribute.FOREGROUND, Color.GRAY);
 

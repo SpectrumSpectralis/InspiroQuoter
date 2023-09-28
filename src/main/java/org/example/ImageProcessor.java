@@ -29,6 +29,16 @@ public class ImageProcessor {
         try(BufferedReader reader = new BufferedReader(new FileReader(quoteSource))){
             String line = reader.readLine();
             while(line != null){
+                if(line.charAt(0) != '"'){
+                    line = reader.readLine();
+                    continue;
+                }
+                line = line.replace('—', '-');
+                line = line.replace('―', '-');
+                if(line.split("-").length <= 1){
+                    line = reader.readLine();
+                    continue;
+                }
                 if(!usedQuotes.contains(Integer.toString(line.split("-")[0].hashCode()))) quotes.add(line);
                 line = reader.readLine();
             }
@@ -53,7 +63,7 @@ public class ImageProcessor {
     }
 
     public String getNextFont(){
-        String font = fonts.get(currentFontSelection);;
+        String font = fonts.get(currentFontSelection);
         currentFontSelection++;
         if(currentFontSelection >= fonts.size()){
             currentFontSelection = 0;
@@ -73,16 +83,8 @@ public class ImageProcessor {
         return imageFiles;
     }
 
-    public void setImageFiles(LinkedList<String> imageFiles) {
-        this.imageFiles = imageFiles;
-    }
-
     public LinkedList<String> getQuotes() {
         return quotes;
-    }
-
-    public void setQuotes(LinkedList<String> quotes) {
-        this.quotes = quotes;
     }
 
     public void loadResults(String destination) {
@@ -94,5 +96,12 @@ public class ImageProcessor {
             usedImages.add(codes[0]);
             usedQuotes.add(codes[1].trim());
         }
+    }
+
+    public void prepare(String approved, String imageSource, String quoteSource, String fontSource) {
+        loadResults(approved);
+        loadDifferentImages(imageSource);
+        loadDifferentQuotes(quoteSource);
+        loadDifferentFonts(fontSource);
     }
 }
