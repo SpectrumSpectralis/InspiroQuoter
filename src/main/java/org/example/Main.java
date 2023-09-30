@@ -6,7 +6,9 @@ import java.awt.font.TextAttribute;
 import java.awt.font.TextLayout;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.text.AttributedString;
 import java.util.ArrayList;
@@ -16,21 +18,24 @@ public class Main {
 
 
     private static final String imageSource = "src/main/resources/images";
-    private static final String quoteSource = "src/main/resources/quotes/quotes.txt";
+    private static final String refinedQuoteSource = "src/main/resources/quotes/quotes.txt";
+    private static final String rawQuoteSource = "src/main/resources/quotes/rawquotes.txt";
+    private static final String rawquoteMetafile = "src/main/resources/quotes/rawquotemetafile.txt";
     private static final String fontSource = "src/main/resources/fonts.txt";
     private static final String destination = "src/main/resources/results";
     private static final String approved = "src/main/resources/approved";
+    private static final boolean debugMode = false;
 
-    private static final int compressor = 4;
+    private static final int compressor = 1;
     private static final int resolution = 1048 * compressor;
     private static final int textSpace = (resolution/8)*7;
     private static final int fontSize = 56 * compressor;
 
     public static void main(String[] args) throws IOException {
-        ImageProcessor processor = new ImageProcessor();
-        processor.prepare(approved, imageSource, quoteSource, fontSource);
+        ImageProcessor processor = new ImageProcessor(imageSource, rawQuoteSource, refinedQuoteSource, fontSource, approved, rawquoteMetafile);
         int maxCycles = Math.min(processor.getImageFiles().size(), processor.getQuotes().size());
 
+        //Creates one Image per Cycle. Max Cycles = max number of images / quotes available
         for(int i = 0; i < maxCycles; i++){
             String img = processor.getFirstImageAndToss();
             StringBuilder imageName = new StringBuilder(img.hashCode() + "_");
@@ -38,10 +43,8 @@ public class Main {
             Image scaledImage = image.getScaledInstance(resolution, resolution, Image.SCALE_DEFAULT);
             image = convertToBufferedImage(scaledImage);
 
-
-            Graphics2D g = image.createGraphics();
-            Font font = new Font(processor.getNextFont(), Font.PLAIN, fontSize);
-            FontMetrics metrics = g.getFontMetrics(font);
+            //Takes the next available line from the list of available quotes. Removes that quoote from said List.
+            //Splits the quote via '-' and rebuilds it into the finishedText and interpret Variables.
             String text  = processor.getFirstQuoteAndToss();
             String interpret = null;
             String[] splittedLine = text.split("-");
@@ -61,13 +64,15 @@ public class Main {
                 interpret = splittedLine[1];
                 textBuilder.append(splittedLine[0]);
             }
-
-
             String finishedText = textBuilder.toString();
 
+            //Sets the Font for the image and calculates the necessary amount of lines needed to fit
+            //the quote inside the image.
+            Graphics2D g = image.createGraphics();
+            Font font = new Font(processor.getNextFont(), Font.PLAIN, fontSize);
+            FontMetrics metrics = g.getFontMetrics(font);
             double avgLines = Math.ceil(((double) metrics.stringWidth(finishedText))/((double) textSpace));
             double avgTextLength = Math.floor(((double) metrics.stringWidth(finishedText))/avgLines);
-
 
             List<String> linesToPost = new ArrayList<>();
             String[] textSplitted = finishedText.trim().split("\\s+");
@@ -83,14 +88,18 @@ public class Main {
                 linesToPost.add(line.toString());
             }
 
+            //Adds the author into the mix
             int negativeYOffsetMultiplier =  linesToPost.size()/2;
+            linesToPost.add("- "+interpret);
+            if(debugMode) linesToPost.add("Font: " + font.getName() + " | Size: " + fontSize/compressor);
 
-            for (String s : linesToPost) {
+            //Prints the Quote and author onto the image
+            for (int j = 0; j < linesToPost.size(); j++) {
+                String s = linesToPost.get(j);
                 int positionX = (image.getWidth() - metrics.stringWidth(s)) / 2;
                 int positionY = (image.getHeight() - metrics.getHeight()) / 2 + metrics.getAscent() - (fontSize * negativeYOffsetMultiplier);
                 AttributedString attributedText = new AttributedString(s);
                 attributedText.addAttribute(TextAttribute.FONT, font);
-                //attributedText.addAttribute(TextAttribute.FOREGROUND, Color.GRAY);
 
                 TextLayout textLayout = new TextLayout(attributedText.getIterator(), g.getFontMetrics().getFontRenderContext());
                 Shape shape = textLayout.getOutline(AffineTransform.getTranslateInstance(positionX, positionY));
@@ -104,32 +113,21 @@ public class Main {
                 g.setColor(Color.LIGHT_GRAY);
                 g.fill(shape);
 
-                //g.drawString(attributedText.getIterator(), positionX, positionY);
-                negativeYOffsetMultiplier--;
+
+                if(j+2 == linesToPost.size()){
+                    negativeYOffsetMultiplier-=3;
+                }else{
+                    negativeYOffsetMultiplier--;
+                }
             }
 
-            if(interpret != null && !interpret.isEmpty()){
-                int positionX = (image.getWidth() - metrics.stringWidth(interpret)) / 2;
-                int positionY = (image.getHeight() - metrics.getHeight()) / 2 + metrics.getAscent() - (fontSize*(negativeYOffsetMultiplier-2));
-                AttributedString attributedText = new AttributedString("- " + interpret);
-                attributedText.addAttribute(TextAttribute.FONT, font);
-                //attributedText.addAttribute(TextAttribute.FOREGROUND, Color.GRAY);
-
-                TextLayout textLayout = new TextLayout(attributedText.getIterator(), g.getFontMetrics().getFontRenderContext());
-                Shape shape = textLayout.getOutline(AffineTransform.getTranslateInstance(positionX, positionY));
-                g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
-                        RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-                g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS,
-                        RenderingHints.VALUE_FRACTIONALMETRICS_ON);
-                g.setColor(Color.BLACK);
-                g.setStroke(new BasicStroke(font.getSize2D() / 8.0f));
-                g.draw(shape);
-                g.setColor(Color.LIGHT_GRAY);
-                g.fill(shape);
-            }
-
+            //Downscales the image (if necessary) and saves it
             scaledImage = image.getScaledInstance(resolution/compressor, resolution/compressor, Image.SCALE_DEFAULT);
             ImageIO.write(convertToBufferedImage(scaledImage), "png", new File(destination + "/" + imageName + ".png"));
+        }
+
+        try(BufferedWriter writer = new BufferedWriter(new FileWriter(rawquoteMetafile))){
+            writer.write(Long.toString(new File(rawQuoteSource).length()));
         }
 
         System.out.println("Done");

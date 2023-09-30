@@ -1,12 +1,27 @@
 package org.example;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 
 public class ImageProcessor {
+    private final String imageSource;
+    private final String rawQuoteSource;
+    private final String refinedQuoteSource;
+    private final String fontSource;
+    private final String approvedDestination;
+    private final String rawQuoteMetaDataSource;
+
+    public ImageProcessor(String imageSource, String rawQuoteSource, String refinedQuoteSource, String fontSource, String approvedDestination, String rawQuoteMetaDataSource) {
+        this.rawQuoteMetaDataSource = rawQuoteMetaDataSource;
+        this.imageSource = imageSource;
+        this.rawQuoteSource = rawQuoteSource;
+        this.refinedQuoteSource = refinedQuoteSource;
+        this.fontSource = fontSource;
+        this.approvedDestination = approvedDestination;
+        this.prepare();
+
+    }
+
     private LinkedList<String> imageFiles;
     private LinkedList<String> quotes;
     private LinkedList<String> fonts;
@@ -14,7 +29,7 @@ public class ImageProcessor {
     private HashSet<String> usedImages;
     private HashSet<String> usedQuotes;
     private int currentFontSelection = 0;
-    protected void loadDifferentImages(String imageSource) {
+    protected void loadDifferentImages() {
         imageFiles = new LinkedList<>();
         File folder = new File(imageSource);
         for (final File fileEntry : Objects.requireNonNull(folder.listFiles())) {
@@ -24,22 +39,12 @@ public class ImageProcessor {
         Collections.shuffle(imageFiles);
     }
 
-    public void loadDifferentQuotes(String quoteSource) {
+    public void loadDifferentQuotes() {
         quotes = new LinkedList<>();
-        try(BufferedReader reader = new BufferedReader(new FileReader(quoteSource))){
+        try(BufferedReader reader = new BufferedReader(new FileReader(refinedQuoteSource))){
             String line = reader.readLine();
             while(line != null){
-                if(line.charAt(0) != '"'){
-                    line = reader.readLine();
-                    continue;
-                }
-                line = line.replace('—', '-');
-                line = line.replace('―', '-');
-                if(line.split("-").length <= 1){
-                    line = reader.readLine();
-                    continue;
-                }
-                if(!usedQuotes.contains(Integer.toString(line.split("-")[0].hashCode()))) quotes.add(line);
+                quotes.add(line);
                 line = reader.readLine();
             }
         } catch (IOException e) {
@@ -48,7 +53,7 @@ public class ImageProcessor {
         Collections.shuffle(quotes);
     }
 
-    public void loadDifferentFonts(String fontSource) {
+    public void loadDifferentFonts() {
         fonts = new LinkedList<>();
         try(BufferedReader reader = new BufferedReader(new FileReader(fontSource))){
                 String line = reader.readLine();
@@ -87,10 +92,10 @@ public class ImageProcessor {
         return quotes;
     }
 
-    public void loadResults(String destination) {
+    public void loadResults() {
         usedImages = new HashSet<>();
         usedQuotes = new HashSet<>();
-        File folder = new File(destination);
+        File folder = new File(approvedDestination);
         for (final File fileEntry : Objects.requireNonNull(folder.listFiles())) {
             String[] codes = fileEntry.getName().split("[_.]");
             usedImages.add(codes[0]);
@@ -98,10 +103,77 @@ public class ImageProcessor {
         }
     }
 
-    public void prepare(String approved, String imageSource, String quoteSource, String fontSource) {
-        loadResults(approved);
-        loadDifferentImages(imageSource);
-        loadDifferentQuotes(quoteSource);
-        loadDifferentFonts(fontSource);
+    private void prepare() {
+        loadResults();
+        cleanUpImages();
+        if(hasBaseQuotesChanged() || refinedQuotesDoesntExist()){
+            createQuotes();
+        }
+        loadDifferentImages();
+        loadDifferentQuotes();
+        loadDifferentFonts();
+    }
+
+    private boolean refinedQuotesDoesntExist() {
+        return new File(refinedQuoteSource).exists();
+    }
+
+    private boolean hasBaseQuotesChanged() {
+        if(rawQuoteMetaDataSource == null) return true;
+        try(BufferedReader reader = new BufferedReader(new FileReader(rawQuoteMetaDataSource))) {
+            String s = reader.readLine();
+            if(s != null && !s.isEmpty()){
+                return Long.parseLong(s) != new File(rawQuoteSource).length();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return true;
+    }
+
+    /**
+     * Cleans up
+     */
+    public void cleanUpImages(){
+        File folder = new File(imageSource);
+        for (final File fileEntry : Objects.requireNonNull(folder.listFiles())) {
+            String fullFileName = imageSource + "/" + fileEntry.getName();
+            if(usedImages.contains(Integer.toString(fullFileName.hashCode()))) {
+                if(!fileEntry.delete()){
+                    throw new RuntimeException("File " + fileEntry.getName() + " could not be deleted!");
+                }
+            }
+        }
+    }
+
+    public void createQuotes(){
+        List<String> rawQuotes = new ArrayList<>();
+        try(BufferedReader reader = new BufferedReader(new FileReader(rawQuoteSource))){
+            String line = reader.readLine();
+            while(line != null){
+                if(line.charAt(0) != '"'){
+                    line = reader.readLine();
+                    continue;
+                }
+                line = line.replace('—', '-');
+                line = line.replace('―', '-');
+                if(line.split("-").length <= 1){
+                    line = reader.readLine();
+                    continue;
+                }
+                if(!usedQuotes.contains(Integer.toString(line.split("-")[0].hashCode()))) rawQuotes.add(line);
+                line = reader.readLine();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        try(BufferedWriter writer = new BufferedWriter(new FileWriter(this.refinedQuoteSource))){
+            for(String s : rawQuotes){
+                writer.write(s + "\n");
+            }
+        }catch (IOException e) {
+            System.out.println("No File Found");
+        }
     }
 }
