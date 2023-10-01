@@ -65,6 +65,7 @@ public class ImageProcessor {
                 throw new RuntimeException(e);
             }
             Collections.shuffle(fonts);
+        if(fonts.isEmpty()) throw new IllegalArgumentException("No fonts present!");
     }
 
     public String getNextFont(){

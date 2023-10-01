@@ -10,29 +10,46 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.text.AttributedString;
 import java.util.ArrayList;
 import java.util.List;
 
 public class Main {
 
-
-    private static final String imageSource = "src/main/resources/images";
-    private static final String refinedQuoteSource = "src/main/resources/quotes/quotes.txt";
-    private static final String rawQuoteSource = "src/main/resources/quotes/rawquotes.txt";
-    private static final String rawquoteMetafile = "src/main/resources/quotes/rawquotemetafile.txt";
-    private static final String fontSource = "src/main/resources/fonts.txt";
-    private static final String destination = "src/main/resources/results";
-    private static final String approved = "src/main/resources/approved";
+    private static final String inspiroFolderName = "Images For Inspiration";
+    private static final String approvedFolderName = "approved";
+    private static final String rawImagesFolderName = "rawImages";
+    private static final String resultsFolderName = "results";
+    private static final String quotesFolderName = "quotes";
+    private static final String refinedQuotesFileName = "refinedQuotes.txt";
+    private static final String rawQuotesFileName = "rawQuotes.txt";
+    private static final String rawQuotesMetaFileName = "rawQuotesMetaFileName.txt";
+    private static final String fontsFileName = "fonts.txt";
+    private static final String desktopPath = System.getProperty("user.home") + File.separator +"Desktop";
+    private static final String imageSource = desktopPath+"/"+inspiroFolderName+"/"+rawImagesFolderName;
+    private static final String quoteFolderSource = desktopPath+"/"+inspiroFolderName+"/"+quotesFolderName;
+    private static final String refinedQuoteSource = quoteFolderSource + "/" + refinedQuotesFileName;
+    private static final String rawQuoteSource = quoteFolderSource + "/" + rawQuotesFileName;
+    private static final String rawquoteMetafile = quoteFolderSource + "/" + rawQuotesMetaFileName;
+    private static final String fontSource = quoteFolderSource+"/"+fontsFileName;
+    private static final String destinationFolderSource = desktopPath+"/"+inspiroFolderName+"/"+resultsFolderName;
+    private static final String approvedFolderSource = desktopPath+"/"+inspiroFolderName+"/"+approvedFolderName;
     private static final boolean debugMode = false;
 
-    private static final int compressor = 1;
-    private static final int resolution = 1048 * compressor;
+    private static final int resolution = 1048;
     private static final int textSpace = (resolution/8)*7;
-    private static final int fontSize = 56 * compressor;
+    private static final int fontSize = 56;
 
     public static void main(String[] args) throws IOException {
-        ImageProcessor processor = new ImageProcessor(imageSource, rawQuoteSource, refinedQuoteSource, fontSource, approved, rawquoteMetafile);
+        if(!prepareFolders()) {
+            System.out.println("Program not operational!");
+            return;
+        }
+        
+        ImageProcessor processor = new ImageProcessor(imageSource, rawQuoteSource, refinedQuoteSource, fontSource, approvedFolderSource, rawquoteMetafile);
         int maxCycles = Math.min(processor.getImageFiles().size(), processor.getQuotes().size());
 
         //Creates one Image per Cycle. Max Cycles = max number of images / quotes available
@@ -91,7 +108,7 @@ public class Main {
             //Adds the author into the mix
             int negativeYOffsetMultiplier =  linesToPost.size()/2;
             linesToPost.add("- "+interpret);
-            if(debugMode) linesToPost.add("Font: " + font.getName() + " | Size: " + fontSize/compressor);
+            if(debugMode) linesToPost.add("Font: " + font.getName() + " | Size: " + fontSize);
 
             //Prints the Quote and author onto the image
             for (int j = 0; j < linesToPost.size(); j++) {
@@ -122,8 +139,9 @@ public class Main {
             }
 
             //Downscales the image (if necessary) and saves it
-            scaledImage = image.getScaledInstance(resolution/compressor, resolution/compressor, Image.SCALE_DEFAULT);
-            ImageIO.write(convertToBufferedImage(scaledImage), "png", new File(destination + "/" + imageName + ".png"));
+            scaledImage = image.getScaledInstance(resolution, resolution, Image.SCALE_DEFAULT);
+
+            ImageIO.write(convertToBufferedImage(scaledImage), "png", new File(destinationFolderSource + "/" + imageName + ".png"));
         }
 
         try(BufferedWriter writer = new BufferedWriter(new FileWriter(rawquoteMetafile))){
@@ -132,6 +150,58 @@ public class Main {
 
         System.out.println("Done");
 
+    }
+
+    private static boolean prepareFolders() throws IOException {
+        boolean operational = true;
+
+        Path baseDir = Paths.get(desktopPath + "/" + inspiroFolderName);
+        if(!Files.exists(baseDir)){
+            operational = false;
+            Files.createDirectory(baseDir);
+        }
+
+        Path rawimgDir = Paths.get(imageSource);
+        if(!Files.exists(rawimgDir)){
+            operational = false;
+            Files.createDirectory(rawimgDir);
+        }
+
+        Path resultImgDir = Paths.get(destinationFolderSource);
+        if(!Files.exists(resultImgDir)){
+            Files.createDirectory(resultImgDir);
+        }
+
+        Path approvedImgDir = Paths.get(approvedFolderSource);
+        if(!Files.exists(approvedImgDir)){
+            Files.createDirectory(approvedImgDir);
+        }
+
+        Path quotesDir = Paths.get(quoteFolderSource);
+        if(!Files.exists(quotesDir)){
+            operational = false;
+            Files.createDirectory(quotesDir);
+        }
+
+        Path rawQuotes = Paths.get(quoteFolderSource + "/" + rawQuotesFileName);
+        Path rawQuotesMetaFile = Paths.get(quoteFolderSource + "/" + rawQuotesMetaFileName);
+        if(!Files.exists(rawQuotes)){
+            Files.createFile(rawQuotes);
+            Files.createFile(rawQuotesMetaFile);
+            operational = false;
+        }else{
+            if(!Files.exists(rawQuotesMetaFile)){
+                Files.createFile(rawQuotesMetaFile);
+            }
+        }
+
+        Path fonts = Paths.get(quoteFolderSource + "/" + fontsFileName);
+        if(!Files.exists(fonts)){
+            operational = false;
+            Files.createFile(fonts);
+        }
+
+        return operational;
     }
 
     public static BufferedImage convertToBufferedImage(Image img) {
