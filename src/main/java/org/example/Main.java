@@ -19,7 +19,7 @@ import java.util.List;
 
 public class Main {
 
-    private static final String inspiroFolderName = "Images For Inspiration";
+    private static final String inspiroFolderName = "ImagesForInspiration";
     private static final String approvedFolderName = "approved";
     private static final String rawImagesFolderName = "rawImages";
     private static final String resultsFolderName = "results";
